@@ -93,18 +93,18 @@ const C = {
 
 function seedGraph() {
   const data = [
-    {id:1, x:0,   y:0,    label:'Home',        color:C.purple, r:20},
-    {id:2, x:140, y:-90,  label:'Projects',    color:C.purple, r:15},
-    {id:3, x:-140,y:-90,  label:'Daily Notes', color:C.blue,   r:15},
-    {id:4, x:0,   y:150,  label:'Index',       color:C.teal,   r:17},
-    {id:5, x:250, y:20,   label:'Reading',     color:C.purple, r:12},
-    {id:6, x:-250,y:20,   label:'Journals',    color:C.blue,   r:13},
-    {id:7, x:150, y:170,  label:'Ideas',       color:C.purple, r:13},
-    {id:8, x:-150,y:170,  label:'Archive',     color:C.purple, r:11},
-    {id:9, x:290, y:-130, label:'AI Notes',    color:C.amber,  r:13},
-    {id:10,x:-290,y:-130, label:'Quotes',      color:C.teal,   r:12},
-    {id:11,x:60,  y:-200, label:'Fleeting',    color:C.blue,   r:11},
-    {id:12,x:-60, y:-200, label:'Literature',  color:C.coral,  r:11},
+    {id:1, x:0,   y:0,    label:'Home',        color:C.purple},
+    {id:2, x:140, y:-90,  label:'Projects',    color:C.purple},
+    {id:3, x:-140,y:-90,  label:'Daily Notes', color:C.blue  },
+    {id:4, x:0,   y:150,  label:'Index',       color:C.teal  },
+    {id:5, x:250, y:20,   label:'Reading',     color:C.purple},
+    {id:6, x:-250,y:20,   label:'Journals',    color:C.blue  },
+    {id:7, x:150, y:170,  label:'Ideas',       color:C.purple},
+    {id:8, x:-150,y:170,  label:'Archive',     color:C.purple},
+    {id:9, x:290, y:-130, label:'AI Notes',    color:C.amber },
+    {id:10,x:-290,y:-130, label:'Quotes',      color:C.teal  },
+    {id:11,x:60,  y:-200, label:'Fleeting',    color:C.blue  },
+    {id:12,x:-60, y:-200, label:'Literature',  color:C.coral },
   ];
   const links = [
     [1,2],[1,3],[1,4],[1,6],[2,5],[2,7],[2,9],[3,6],[3,10],[3,11],
@@ -114,9 +114,13 @@ function seedGraph() {
   edges = links.map(([a,b]) => ({ s:a, t:b }));
 }
 
+function nodeRadius(id) {
+  const deg = edges.filter(e => e.s===id || e.t===id).length;
+  return 6 + deg * 3.5;
+}
+
 function addNode(wx, wy, label) {
-  const r = Math.max(10, Math.min(16, 8 + label.length * 0.5));
-  nodes.push({ id:++uid, x:wx, y:wy, label, color:C.purple, r, vx:0, vy:0, fx:null, fy:null });
+  nodes.push({ id:++uid, x:wx, y:wy, label, color:C.purple, vx:0, vy:0, fx:null, fy:null });
 }
 
 function toWorld(cx, cy) { return { x:(cx-camX)/zoom, y:(cy-camY)/zoom }; }
@@ -126,7 +130,7 @@ function getNodeAt(cx, cy) {
   const {x,y} = toWorld(cx, cy);
   for (let i = nodes.length-1; i >= 0; i--) {
     const n = nodes[i];
-    if (Math.hypot(x-n.x, y-n.y) < n.r + 3) return n;
+    if (Math.hypot(x-n.x, y-n.y) < nodeRadius(n.id) + 3) return n;
   }
   return null;
 }
@@ -157,7 +161,8 @@ function tick() {
     for (let j = i+1; j < nodes.length; j++) {
       let dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
       let d = Math.sqrt(dx*dx + dy*dy) || 1;
-      let f = rep / (d*d);
+      const minDist = nodeRadius(nodes[i].id) + nodeRadius(nodes[j].id) + 20;
+      let f = rep / (d*d) + (d < minDist ? (minDist-d)*2 : 0);
       let ux = dx/d, uy = dy/d;
       nodes[i].vx += ux*f*dt; nodes[i].vy += uy*f*dt;
       nodes[j].vx -= ux*f*dt; nodes[j].vy -= uy*f*dt;
@@ -247,7 +252,7 @@ function draw() {
     const isSel = selected && selected.id===n.id;
     const isHov = hovered && hovered.id===n.id;
     const isSearch = searchHighlight && n.label.toLowerCase().includes(searchHighlight);
-    const r = n.r * (isHov||isSel ? 1.18 : 1);
+    const r = nodeRadius(n.id) * (isHov||isSel ? 1.18 : 1);
 
     if (isSel||isHov||isSearch) {
       ctx.beginPath(); ctx.arc(n.x, n.y, r+7/zoom, 0, Math.PI*2);
@@ -275,7 +280,7 @@ function draw() {
 
   if (linkFirst) {
     const n=linkFirst;
-    ctx.beginPath(); ctx.arc(n.x,n.y,n.r+5/zoom,0,Math.PI*2);
+    ctx.beginPath(); ctx.arc(n.x,n.y,nodeRadius(n.id)+5/zoom,0,Math.PI*2);
     ctx.strokeStyle='#7c6fcd'; ctx.lineWidth=2/zoom; ctx.stroke();
   }
 
