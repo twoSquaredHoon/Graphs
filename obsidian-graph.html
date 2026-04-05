@@ -83,21 +83,20 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
   <div id="drop-zone">
     <div class="icon">⬡</div>
     <h2>Open your vault</h2>
-    <p>Drag a folder of <code>.md</code> files here<br>or use the buttons below</p>
+    <p>Drag a <code>.md</code> vault file here<br>or use the buttons below</p>
     <div class="open-btns">
-      <button class="open-btn" onclick="document.getElementById('folder-input').click()">📂 Open folder</button>
-      <button class="open-btn" onclick="document.getElementById('file-input').click()">📄 Pick files</button>
+      <button class="open-btn" onclick="document.getElementById('file-input').click()">📄 Open vault file</button>
       <button class="open-btn" style="border-color:rgba(124,111,205,.5);background:rgba(124,111,205,.22)" onclick="startFresh()">✎ Start fresh</button>
     </div>
   </div>
-  <input type="file" id="file-input" accept=".md" multiple onchange="loadFiles(this.files)">
-  <input type="file" id="folder-input" webkitdirectory multiple onchange="loadFiles(this.files)">
+  <input type="file" id="file-input" accept=".md" onchange="loadVaultFile(this.files[0])">
 </div>
 
 <div id="toolbar" style="display:none">
-  <button class="btn" onclick="document.getElementById('folder-input').click()">📂 Open vault</button>
+  <button class="btn" onclick="document.getElementById('file-input').click()">📄 Open</button>
+  <button class="btn" onclick="saveVault()">💾 Save</button>
   <div class="sep"></div>
-  <button class="btn" id="btn-newfile" onclick="openEditor()">✎ New file</button>
+  <button class="btn" id="btn-newfile" onclick="openEditor()">✎ New note</button>
   <button class="btn" id="btn-link" onclick="toggleLinkMode()">⟷ Link</button>
   <button class="btn" id="btn-cut" onclick="toggleCutMode()">✂ Cut</button>
   <div class="sep"></div>
@@ -131,8 +130,8 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
     <textarea id="editor-textarea" placeholder="Start writing your note…&#10;&#10;Use [[Note Name]] to link to other notes."></textarea>
   </div>
   <div id="editor-footer">
-    <span id="editor-hint">Save &amp; close to download the .md file</span>
-    <button id="editor-save" onclick="closeEditor(true)">💾 Save &amp; close</button>
+    <span id="editor-hint">Changes saved to vault on close</span>
+    <button id="editor-save" onclick="closeEditor(true)">✓ Done</button>
   </div>
 </div>
 
@@ -164,15 +163,69 @@ function extractWikilinks(text){
   return out;
 }
 
-async function loadFiles(fileList){
-  const files=Array.from(fileList).filter(f=>f.name.endsWith('.md'));
-  if(!files.length) return;
-  const data=await Promise.all(files.map(f=>new Promise(res=>{
-    const r=new FileReader();
-    r.onload=e=>res({name:f.name.replace(/\.md$/i,''), content:e.target.result});
-    r.readAsText(f);
-  })));
-  buildGraph(data);
+// ── Single vault file I/O ─────────────────────────────────────────────
+
+// Parse a vault .md file into node data
+// Format:
+//   ## Node: Title
+//   links: [[A]], [[B]]
+//
+//   Body text with optional [[wikilinks]]
+//
+//   ---   (separator between nodes)
+
+function parseVault(text){
+  // Split on --- or ## Node: boundaries
+  const sections = text.split(/\n(?=## Node:)/);
+  const fileData = [];
+  sections.forEach(sec=>{
+    const titleMatch = sec.match(/^## Node:\s*(.+)/m);
+    if(!titleMatch) return;
+    const name = titleMatch[1].trim();
+    // Strip the ## Node: line itself
+    const body = sec.replace(/^## Node:.*\n?/m,'');
+    fileData.push({name, content: body});
+  });
+  return fileData;
+}
+
+// Serialize current graph back to vault .md text
+function serializeVault(){
+  let out = '';
+  nodes.filter(n=>!n.isGhost).forEach((n,i)=>{
+    if(i>0) out += '\n---\n\n';
+    out += `## Node: ${n.label}\n`;
+    // Collect explicit edge targets for links: field
+    const linked = edges
+      .filter(e=>e.s===n.id||e.t===n.id)
+      .map(e=>{ const otherId=e.s===n.id?e.t:e.s; const o=nodes.find(x=>x.id===otherId); return o?o.label:null; })
+      .filter(Boolean);
+    if(linked.length) out += `links: ${linked.map(l=>`[[${l}]]`).join(', ')}\n`;
+    out += '\n';
+    if(n.content) out += n.content.trimEnd() + '\n';
+    out += '\n';
+  });
+  return out.trimEnd() + '\n';
+}
+
+function saveVault(){
+  const text = serializeVault();
+  const blob = new Blob([text],{type:'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = vaultFilename || 'vault.md';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+let vaultFilename = 'vault.md';
+
+function loadVaultFile(file){
+  if(!file) return;
+  vaultFilename = file.name;
+  const r = new FileReader();
+  r.onload = e => buildGraph(parseVault(e.target.result));
+  r.readAsText(file);
 }
 
 function colorForDeg(deg){
@@ -187,34 +240,32 @@ function buildGraph(fileData){
   nodes=[]; edges=[]; uid=1;
   const nameToId={};
 
-  // Create a node per file
   fileData.forEach(f=>{
     const id=uid++;
     nameToId[f.name.toLowerCase()]=id;
     const a=Math.random()*Math.PI*2, d=60+Math.random()*220;
-    nodes.push({id, label:f.name, color:C.gray, x:Math.cos(a)*d, y:Math.sin(a)*d, vx:0,vy:0,fx:null,fy:null, isGhost:false});
+    nodes.push({id, label:f.name, color:C.gray, x:Math.cos(a)*d, y:Math.sin(a)*d, vx:0,vy:0,fx:null,fy:null, isGhost:false, content:f.content||''});
   });
 
-  // Parse wikilinks → edges
+  // Parse both links: field and [[wikilinks]] in body
   const edgeSet=new Set();
   fileData.forEach(f=>{
     const srcId=nameToId[f.name.toLowerCase()];
-    extractWikilinks(f.content).forEach(target=>{
+    const allLinks=new Set([...extractWikilinks(f.content)]);
+    allLinks.forEach(target=>{
       const key_lower=target.toLowerCase();
       let tgtId=nameToId[key_lower];
       if(tgtId===undefined){
-        // ghost node for unresolved link
         tgtId=uid++;
         nameToId[key_lower]=tgtId;
         const a=Math.random()*Math.PI*2, d=80+Math.random()*260;
-        nodes.push({id:tgtId, label:target, color:C.gray, x:Math.cos(a)*d, y:Math.sin(a)*d, vx:0,vy:0,fx:null,fy:null, isGhost:true});
+        nodes.push({id:tgtId, label:target, color:C.gray, x:Math.cos(a)*d, y:Math.sin(a)*d, vx:0,vy:0,fx:null,fy:null, isGhost:true, content:''});
       }
       const ek=[Math.min(srcId,tgtId),Math.max(srcId,tgtId)].join('-');
       if(!edgeSet.has(ek)){ edgeSet.add(ek); edges.push({s:srcId,t:tgtId}); }
     });
   });
 
-  // Re-color by degree now that edges exist
   nodes.forEach(n=>{
     if(n.isGhost) return;
     n.color=colorForDeg(edges.filter(e=>e.s===n.id||e.t===n.id).length);
@@ -226,7 +277,7 @@ function buildGraph(fileData){
 }
 
 function updateStats(){
-  document.getElementById('stat-nodes').textContent=nodes.length;
+  document.getElementById('stat-nodes').textContent=nodes.filter(n=>!n.isGhost).length;
   document.getElementById('stat-edges').textContent=edges.length;
 }
 
@@ -243,10 +294,10 @@ function showUI(){
 
 function startFresh(){
   nodes=[]; edges=[]; uid=1;
+  vaultFilename='vault.md';
   showUI();
   resetView();
   updateStats();
-  // Open editor immediately so user can create their first note
   setTimeout(()=>openEditor(), 50);
 }
 
@@ -410,7 +461,7 @@ function draw(){
   ctx.restore();
 }
 
-// ── Drag & drop folder ────────────────────────────────────────────────
+// ── Drag & drop vault file ────────────────────────────────────────────
 document.addEventListener('dragover', e=>{
   e.preventDefault();
   if(!document.getElementById('drop-overlay').classList.contains('hidden'))
@@ -422,35 +473,9 @@ document.addEventListener('dragleave', e=>{
 document.addEventListener('drop', e=>{
   e.preventDefault();
   document.getElementById('drop-zone').classList.remove('drag-over');
-  const items=e.dataTransfer.items;
-  if(!items) return;
-  const proms=[];
-  for(const item of items){
-    if(item.kind!=='file') continue;
-    const entry=item.webkitGetAsEntry?item.webkitGetAsEntry():null;
-    if(entry&&entry.isDirectory) proms.push(readDir(entry));
-    else{ const f=item.getAsFile(); if(f&&f.name.endsWith('.md')) proms.push(Promise.resolve([f])); }
-  }
-  Promise.all(proms).then(arrs=>{ const all=arrs.flat(); if(all.length) loadFiles(all); });
+  const files = Array.from(e.dataTransfer.files).filter(f=>f.name.endsWith('.md'));
+  if(files.length) loadVaultFile(files[0]);
 });
-
-function readDir(dir){
-  return new Promise(resolve=>{
-    const results=[];
-    const reader=dir.createReader();
-    function batch(){
-      reader.readEntries(entries=>{
-        if(!entries.length){resolve(results);return;}
-        Promise.all(entries.map(entry=>{
-          if(entry.isFile&&entry.name.endsWith('.md')) return new Promise(r=>entry.file(f=>r([f])));
-          if(entry.isDirectory) return readDir(entry);
-          return Promise.resolve([]);
-        })).then(nested=>{ nested.flat().forEach(f=>f&&results.push(f)); batch(); });
-      });
-    }
-    batch();
-  });
-}
 
 // ── Interaction ───────────────────────────────────────────────────────
 const labelEl=document.getElementById('node-label');
@@ -569,23 +594,24 @@ function closeEditor(save){
   const body=document.getElementById('editor-textarea').value;
 
   if(save){
-    // Download .md file
-    const filename=title.replace(/[\\/:*?"<>|]/g,'_')+'.md';
-    const blob=new Blob([body],{type:'text/markdown'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob); a.download=filename; a.click();
-    URL.revokeObjectURL(a.href);
-
     if(editorNodeId){
-      // Update existing node label + content
+      // Update existing node
       const n=nodes.find(x=>x.id===editorNodeId);
-      if(n){n.label=title;n.content=body;}
+      if(n){ n.label=title; n.content=body; }
+      // Re-wire edges from wikilinks in content
+      edges=edges.filter(e=>e.s!==editorNodeId&&e.t!==editorNodeId);
+      extractWikilinks(body).forEach(target=>{
+        const tgt=nodes.find(n=>n.label.toLowerCase()===target.toLowerCase());
+        if(tgt){
+          const ex=edges.find(e=>(e.s===editorNodeId&&e.t===tgt.id)||(e.s===tgt.id&&e.t===editorNodeId));
+          if(!ex) edges.push({s:editorNodeId,t:tgt.id});
+        }
+      });
     } else {
-      // Add new node near center
+      // Add new node
       const angle=Math.random()*Math.PI*2, dist=80+Math.random()*120;
       const id=uid++;
       nodes.push({id,label:title,color:C.gray,x:Math.cos(angle)*dist,y:Math.sin(angle)*dist,vx:0,vy:0,fx:null,fy:null,isGhost:false,content:body});
-      // Wire up any [[wikilinks]] written in the note
       extractWikilinks(body).forEach(target=>{
         const tgt=nodes.find(n=>n.label.toLowerCase()===target.toLowerCase());
         if(tgt){
@@ -593,8 +619,8 @@ function closeEditor(save){
           if(!ex) edges.push({s:id,t:tgt.id});
         }
       });
-      recolorAll(); updateStats();
     }
+    recolorAll(); updateStats();
   }
 
   editorOpen=false; editorNodeId=null;
