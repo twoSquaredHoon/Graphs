@@ -80,13 +80,14 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
 <canvas id="canvas"></canvas>
 
 <div id="drop-overlay">
-  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+  <div id="drop-zone">
     <div class="icon">⬡</div>
     <h2>Open your vault</h2>
-    <p>Drag a folder of <code>.md</code> files here<br>or use the buttons below to pick files</p>
+    <p>Drag a folder of <code>.md</code> files here<br>or use the buttons below</p>
     <div class="open-btns">
-      <button class="open-btn" onclick="event.stopPropagation();document.getElementById('folder-input').click()">📂 Open folder</button>
-      <button class="open-btn" onclick="event.stopPropagation();document.getElementById('file-input').click()">📄 Pick files</button>
+      <button class="open-btn" onclick="document.getElementById('folder-input').click()">📂 Open folder</button>
+      <button class="open-btn" onclick="document.getElementById('file-input').click()">📄 Pick files</button>
+      <button class="open-btn" style="border-color:rgba(124,111,205,.5);background:rgba(124,111,205,.22)" onclick="startFresh()">✎ Start fresh</button>
     </div>
   </div>
   <input type="file" id="file-input" accept=".md" multiple onchange="loadFiles(this.files)">
@@ -114,7 +115,7 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
 </div>
 
 <div id="node-label"></div>
-<div id="info">Drop .md files or open a folder to build your graph</div>
+<div id="info" style="display:none"></div>
 
 <div id="legend">
   <div><span class="dot" style="background:#888880"></span>0 links &nbsp; <span class="dot" style="background:#5dade2"></span>1–2 &nbsp; <span class="dot" style="background:#7c6fcd"></span>3–5</div>
@@ -235,7 +236,18 @@ function showUI(){
   document.getElementById('search-wrap').style.display='flex';
   document.getElementById('stats').style.display='block';
   document.getElementById('legend').style.display='block';
-  document.getElementById('info').textContent='Drag to move · Scroll to zoom · Double-click node to edit · Right-click to delete';
+  const info=document.getElementById('info');
+  info.style.display='block';
+  info.textContent='Drag to pan · Scroll to zoom · Double-click node to edit · Right-click to delete';
+}
+
+function startFresh(){
+  nodes=[]; edges=[]; uid=1;
+  showUI();
+  resetView();
+  updateStats();
+  // Open editor immediately so user can create their first note
+  setTimeout(()=>openEditor(), 50);
 }
 
 // ── Node sizing ───────────────────────────────────────────────────────
@@ -401,7 +413,8 @@ function draw(){
 // ── Drag & drop folder ────────────────────────────────────────────────
 document.addEventListener('dragover', e=>{
   e.preventDefault();
-  document.getElementById('drop-zone').classList.add('drag-over');
+  if(!document.getElementById('drop-overlay').classList.contains('hidden'))
+    document.getElementById('drop-zone').classList.add('drag-over');
 });
 document.addEventListener('dragleave', e=>{
   if(!e.relatedTarget) document.getElementById('drop-zone').classList.remove('drag-over');
