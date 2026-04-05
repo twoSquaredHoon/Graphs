@@ -54,7 +54,10 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
 .mbtn.confirm{background:#7c6fcd;color:#fff}
 .mbtn:hover{filter:brightness(1.15)}
 
-/* legend */
+/* inline node naming */
+#node-input-wrap{position:fixed;display:none;z-index:500;transform:translate(-50%,-50%)}
+#node-input{background:rgba(20,20,20,.97);border:1.5px solid #7c6fcd;border-radius:8px;padding:6px 12px;color:#eee;font-size:13px;font-family:'Segoe UI',sans-serif;outline:none;width:180px;text-align:center;box-shadow:0 0 0 3px rgba(124,111,205,.2),0 4px 20px rgba(0,0,0,.6)}
+#node-input::placeholder{color:#444}
 #legend{position:fixed;bottom:14px;right:14px;background:rgba(20,20,20,.9);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 12px;font-size:11px;color:#555;line-height:1.9;display:none}
 #legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
 
@@ -96,9 +99,9 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
   <button class="btn" onclick="document.getElementById('file-input').click()">📄 Open</button>
   <button class="btn" onclick="saveVault()">💾 Save</button>
   <div class="sep"></div>
-  <button class="btn" id="btn-newfile" onclick="openEditor()">✎ New note</button>
-  <button class="btn" id="btn-link" onclick="toggleLinkMode()">⟷ Link</button>
-  <button class="btn" id="btn-cut" onclick="toggleCutMode()">✂ Cut</button>
+  <button class="btn" id="btn-newfile" onclick="startInlineNode()">＋ New node</button>
+  <button class="btn" id="btn-link" onclick="toggleLinkMode()">⟷ Link (A)</button>
+  <button class="btn" id="btn-cut" onclick="toggleCutMode()">✂ Cut (C)</button>
   <div class="sep"></div>
   <button class="btn" onclick="deleteSelected()">🗑</button>
   <div class="sep"></div>
@@ -115,6 +118,10 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
 
 <div id="node-label"></div>
 <div id="info" style="display:none"></div>
+
+<div id="node-input-wrap">
+  <input id="node-input" placeholder="Node name…" maxlength="60" spellcheck="false">
+</div>
 
 <div id="legend">
   <div><span class="dot" style="background:#888880"></span>0 links &nbsp; <span class="dot" style="background:#5dade2"></span>1–2 &nbsp; <span class="dot" style="background:#7c6fcd"></span>3–5</div>
@@ -298,7 +305,7 @@ function startFresh(){
   showUI();
   resetView();
   updateStats();
-  setTimeout(()=>openEditor(), 50);
+  setTimeout(()=>startInlineNode(), 50);
 }
 
 // ── Node sizing ───────────────────────────────────────────────────────
@@ -423,6 +430,7 @@ function draw(){
     const isSel=selected&&selected.id===n.id;
     const isHov=hovered&&hovered.id===n.id;
     const isSearch=searchHighlight&&n.label.toLowerCase().includes(searchHighlight);
+    const isInline=n._inline;
     const r=nodeRadius(n.id)*(isHov||isSel?1.18:1);
 
     if(isSel||isHov||isSearch){
@@ -433,21 +441,29 @@ function draw(){
       ctx.fillStyle=g;ctx.fill();
     }
 
-    ctx.globalAlpha=n.isGhost?0.4:0.88;
+    ctx.globalAlpha=isInline?0.7:n.isGhost?0.4:0.88;
     ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);
     ctx.fillStyle=n.color;ctx.fill();ctx.globalAlpha=1;
 
-    ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);
-    ctx.strokeStyle=isSel?'#fff':isHov?'rgba(255,255,255,0.65)':n.isGhost?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.18)';
-    ctx.lineWidth=(isSel?2:0.8)/zoom;ctx.stroke();
+    // Dashed ring for inline node
+    if(isInline){
+      ctx.beginPath();ctx.arc(n.x,n.y,r+5/zoom,0,Math.PI*2);
+      ctx.setLineDash([5/zoom,3/zoom]);
+      ctx.strokeStyle='rgba(124,111,205,0.9)';ctx.lineWidth=1.5/zoom;ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);
+      ctx.strokeStyle=isSel?'#fff':isHov?'rgba(255,255,255,0.65)':n.isGhost?'rgba(255,255,255,0.08)':'rgba(255,255,255,0.18)';
+      ctx.lineWidth=(isSel?2:0.8)/zoom;ctx.stroke();
+    }
 
-    if(zoom>0.35||isHov||isSel){
+    if(zoom>0.35||isHov||isSel||isInline){
       const fs=Math.max(8,Math.min(13,11/zoom));
       ctx.font=`${isSel?'600 ':'400 '}${fs}px Segoe UI,sans-serif`;
       ctx.textAlign='center';
       ctx.globalAlpha=n.isGhost?0.35:1;
       ctx.fillStyle=isHov||isSel?'#fff':'rgba(200,200,225,0.75)';
-      ctx.fillText(n.label,n.x,n.y+r+fs*1.3);
+      if(n.label) ctx.fillText(n.label,n.x,n.y+r+fs*1.3);
       ctx.globalAlpha=1;
     }
   });
@@ -505,7 +521,10 @@ canvas.addEventListener('mousedown',e=>{
   const n=getNodeAt(e.clientX,e.clientY);
   if(cutMode&&!n&&hoveredEdge){
     edges=edges.filter(x=>x!==hoveredEdge);hoveredEdge=null;
-    recolorAll();updateStats();return;
+    recolorAll();updateStats();
+    cutMode=false;
+    document.getElementById('btn-cut').classList.remove('active');
+    return;
   }
   if(n){
     if(linkMode){
@@ -514,6 +533,8 @@ canvas.addEventListener('mousedown',e=>{
         const ex=edges.find(ee=>(ee.s===linkFirst.id&&ee.t===n.id)||(ee.s===n.id&&ee.t===linkFirst.id));
         if(!ex){edges.push({s:linkFirst.id,t:n.id});recolorAll();updateStats();}
         linkFirst=null;
+        linkMode=false;
+        document.getElementById('btn-link').classList.remove('active');
       }
       return;
     }
@@ -549,12 +570,101 @@ canvas.addEventListener('wheel',e=>{
 },{passive:false});
 
 document.addEventListener('keydown',e=>{
+  // Enter to create a new node (when not typing in an input/textarea)
+  const tag = document.activeElement.tagName;
+  const typing = tag==='INPUT'||tag==='TEXTAREA';
+  if(e.key==='Enter' && !typing && !editorOpen){
+    e.preventDefault();
+    startInlineNode();
+    return;
+  }
   if(e.key==='Escape'){
+    if(inlineActive){ cancelInlineNode(); return; }
     linkMode=false;cutMode=false;linkFirst=null;
     ['btn-link','btn-cut'].forEach(id=>document.getElementById(id).classList.remove('active'));
+    if(editorOpen) closeEditor(false);
   }
-  if((e.key==='Delete'||e.key==='Backspace')&&selected&&document.activeElement===document.body) deleteNode(selected);
+  if(!typing && !editorOpen){
+    if(e.key==='a'||e.key==='A'){ e.preventDefault(); toggleLinkMode(); }
+    if(e.key==='c'||e.key==='C'){ e.preventDefault(); toggleCutMode(); }
+    if(e.key==='d'||e.key==='D'){ e.preventDefault(); if(selected) deleteNode(selected); }
+  }
+  if((e.key==='Delete'||e.key==='Backspace')&&selected&&!typing) deleteNode(selected);
 });
+
+// ── Inline node creation ──────────────────────────────────────────────
+let inlineActive=false;
+let inlineNode=null; // temporary node shown on canvas while naming
+
+function startInlineNode(){
+  if(inlineActive) return;
+  inlineActive=true;
+
+  // Create a temporary node at world-center, pinned
+  const w = toWorld(W/2, H/2);
+  const id = uid++;
+  inlineNode = {id, label:'', color:C.purple, x:w.x, y:w.y, vx:0, vy:0, fx:w.x, fy:w.y, isGhost:false, content:'', _inline:true};
+  nodes.push(inlineNode);
+
+  // Position the input below the node on screen
+  positionInlineInput();
+  const wrap = document.getElementById('node-input-wrap');
+  const inp  = document.getElementById('node-input');
+  wrap.style.display='block';
+  inp.value='';
+  inp.focus();
+}
+
+function positionInlineInput(){
+  if(!inlineNode) return;
+  // Convert node world pos to screen pos
+  const sx = inlineNode.x * zoom + camX;
+  const sy = inlineNode.y * zoom + camY;
+  const r  = nodeRadius(inlineNode.id);
+  const wrap = document.getElementById('node-input-wrap');
+  wrap.style.left = sx + 'px';
+  wrap.style.top  = (sy + r * zoom + 32) + 'px';
+}
+
+function confirmInlineNode(){
+  const inp   = document.getElementById('node-input');
+  const label = inp.value.trim();
+  if(inlineNode){
+    if(label){
+      inlineNode.label   = label;
+      inlineNode.fx      = null;
+      inlineNode.fy      = null;
+      inlineNode._inline = false;
+      recolorAll(); updateStats();
+    } else {
+      // Empty name — remove the temp node
+      nodes = nodes.filter(n=>n!==inlineNode);
+    }
+  }
+  inlineNode  = null;
+  inlineActive = false;
+  document.getElementById('node-input-wrap').style.display='none';
+  canvas.focus();
+}
+
+function cancelInlineNode(){
+  if(inlineNode){
+    nodes = nodes.filter(n=>n!==inlineNode);
+    inlineNode = null;
+  }
+  inlineActive = false;
+  document.getElementById('node-input-wrap').style.display='none';
+  canvas.focus();
+}
+
+document.getElementById('node-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){ e.preventDefault(); confirmInlineNode(); }
+  if(e.key==='Escape'){ e.preventDefault(); cancelInlineNode(); }
+});
+
+// Keep input positioned under node each frame
+function loop(){tick();draw();if(inlineActive)positionInlineInput();requestAnimationFrame(loop);}
+loop();
 
 function recolorAll(){
   nodes.forEach(n=>{
@@ -638,9 +748,6 @@ function toggleCutMode(){cutMode=!cutMode;document.getElementById('btn-cut').cla
 function togglePhysics(){physicsOn=!physicsOn;document.getElementById('btn-phys').textContent=physicsOn?'⚡ Physics':'⏸ Paused';}
 function resetView(){zoom=1;camX=W/2;camY=H/2;}
 function searchNodes(v){searchHighlight=v.trim().toLowerCase()||null;}
-
-function loop(){tick();draw();requestAnimationFrame(loop);}
-loop();
 </script>
 </body>
 </html>
