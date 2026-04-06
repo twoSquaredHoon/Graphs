@@ -10,17 +10,32 @@ let searchHighlight = null;
 let uid = 1;
 let W, H;
 
-const C = { purple: '#7c6fcd', blue: '#5dade2', teal: '#48c9b0', amber: '#f39c12', gray: '#888880' };
+const C = {
+  purple: '#a78bfa',
+  blue:   '#38bdf8',
+  teal:   '#2dd4bf',
+  amber:  '#fbbf24',
+  gray:   '#6b7280'
+};
 const PALETTE = [
-  '#888880', '#ffffff', '#c0c0c0',
-  '#5dade2', '#1a6fa8', '#a8d8f0',
-  '#7c6fcd', '#4a3f8f', '#b8b0e8',
-  '#48c9b0', '#1a8a72', '#a0e8d8',
-  '#f39c12', '#b35a00', '#f8c880',
-  '#e74c3c', '#8b0000', '#f0a0a0',
-  '#2ecc71', '#1a6b3a', '#a0e8b8',
-  '#e91e8c', '#8b0050', '#f0a0d0',
-  '#ff6b35', '#ffd700', '#9b59b6',
+  // purples & violets
+  '#a78bfa', '#7c3aed', '#c4b5fd',
+  // blues
+  '#38bdf8', '#1d4ed8', '#93c5fd',
+  // teals & cyans
+  '#2dd4bf', '#0e7490', '#67e8f9',
+  // greens
+  '#4ade80', '#15803d', '#86efac',
+  // yellows & ambers
+  '#fbbf24', '#b45309', '#fde68a',
+  // oranges
+  '#fb923c', '#c2410c', '#fed7aa',
+  // reds & pinks
+  '#f87171', '#be123c', '#fda4af',
+  // magentas
+  '#e879f9', '#86198f', '#f0abfc',
+  // neutrals
+  '#6b7280', '#e2e8f0', '#f43f5e',
 ];
 
 function colorForDeg(deg) {
