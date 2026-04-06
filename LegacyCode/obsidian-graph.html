@@ -473,11 +473,11 @@ function draw(){
 
   // Compute focus set only when editor is open
   const focusSet = new Set();
-  if(editorOpen && editorNodeId){
-    focusSet.add(editorNodeId);
+  if(focusNodeId){
+    focusSet.add(focusNodeId);
     edges.forEach(e=>{
-      if(e.s===editorNodeId) focusSet.add(e.t);
-      if(e.t===editorNodeId) focusSet.add(e.s);
+      if(e.s===focusNodeId) focusSet.add(e.t);
+      if(e.t===focusNodeId) focusSet.add(e.s);
     });
   }
 
@@ -485,7 +485,7 @@ function draw(){
   edges.forEach(e=>{
     const a=nodes.find(n=>n.id===e.s), b=nodes.find(n=>n.id===e.t);
     if(!a||!b) return;
-    const isEdgeDimmed=editorOpen&&editorNodeId&&!(focusSet.has(e.s)&&focusSet.has(e.t));
+    const isEdgeDimmed=focusNodeId&&!(focusSet.has(e.s)&&focusSet.has(e.t));
     const hot=hovered&&(hovered.id===a.id||hovered.id===b.id);
     const sel=selected&&(selected.id===a.id||selected.id===b.id);
     const hov=hoveredEdge===e;
@@ -519,7 +519,7 @@ function draw(){
     const isHov=hovered&&hovered.id===n.id;
     const isSearch=searchHighlight&&n.label.toLowerCase().includes(searchHighlight);
     const isInline=n._inline;
-    const isDimmed=editorOpen&&editorNodeId&&!focusSet.has(n.id);
+    const isDimmed=focusNodeId&&!focusSet.has(n.id);
     const r=nodeRadius(n.id)*(isHov||isSel?1.18:1);
 
     if(isSel||isHov||isSearch){
@@ -616,6 +616,11 @@ canvas.addEventListener('mousedown',e=>{
     return;
   }
   if(n){
+    // Shift-click: toggle focus mode without opening editor
+    if(e.shiftKey){
+      focusNodeId = (focusNodeId===n.id) ? null : n.id;
+      return;
+    }
     if(linkMode){
       if(!linkFirst){linkFirst=n;return;}
       if(linkFirst.id!==n.id){
@@ -633,6 +638,7 @@ canvas.addEventListener('mousedown',e=>{
   } else {
     if(editorOpen){ panStart={x:e.clientX,y:e.clientY};camStart={x:camX,y:camY}; return; }
     selected=null;
+    if(!editorOpen) focusNodeId=null;
     panStart={x:e.clientX,y:e.clientY};camStart={x:camX,y:camY};
   }
 });
@@ -780,9 +786,11 @@ function deleteSelected(){if(selected)deleteNode(selected);}
 
 // ── Editor ────────────────────────────────────────────────────────────
 let editorOpen=false, editorNodeId=null;
+let focusNodeId=null; // set by shift-click or editor open
 
 function openEditor(nodeId){
   editorOpen=true; editorNodeId=nodeId||null;
+  focusNodeId=nodeId||null;
   const titleEl=document.getElementById('editor-title');
   const bodyEl=document.getElementById('editor-textarea');
   const n = nodeId ? nodes.find(x=>x.id===nodeId) : null;
@@ -834,7 +842,7 @@ function closeEditor(save){
     recolorAll(); updateStats();
   }
 
-  editorOpen=false; editorNodeId=null;
+  editorOpen=false; editorNodeId=null; focusNodeId=null;
   document.getElementById('editor').classList.remove('open');
 }
 

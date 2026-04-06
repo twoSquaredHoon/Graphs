@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Graph View</title>
+<link rel="stylesheet" href="style/main.css">
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="drop-overlay">
+  <div id="drop-zone">
+    <div class="icon">⬡</div>
+    <h2>Open your vault</h2>
+    <p>Drag a <code>.md</code> vault file here<br>or use the buttons below</p>
+    <div class="open-btns">
+      <button class="open-btn" onclick="document.getElementById('file-input').click()">📄 Open vault file</button>
+      <button class="open-btn" style="border-color:rgba(124,111,205,.5);background:rgba(124,111,205,.22)" onclick="startFresh()">✎ Start fresh</button>
+    </div>
+  </div>
+  <input type="file" id="file-input" accept=".md" onchange="loadVaultFile(this.files[0])">
+</div>
+
+<div id="toolbar" style="display:none">
+  <button class="btn" onclick="document.getElementById('file-input').click()">📄 Open</button>
+  <button class="btn" onclick="saveVault()">💾 Save</button>
+  <div class="sep"></div>
+  <button class="btn" id="btn-newfile" onclick="startInlineNode()">＋ New node</button>
+  <button class="btn" id="btn-link" onclick="toggleLinkMode()">⟷ Link (A)</button>
+  <button class="btn" id="btn-cut" onclick="toggleCutMode()">✂ Cut (C)</button>
+  <div class="sep"></div>
+  <button class="btn" onclick="deleteSelected()">🗑</button>
+  <div class="sep"></div>
+  <button class="btn" onclick="resetView()">⊡</button>
+  <button class="btn" onclick="togglePhysics()" id="btn-phys">⚡ Physics</button>
+</div>
+
+<div id="stats" style="display:none"><b id="stat-nodes">0</b> nodes &nbsp;·&nbsp; <b id="stat-edges">0</b> links</div>
+
+<div id="search-wrap" style="display:none">
+  <span style="color:#444;font-size:13px">⌕</span>
+  <input id="search-input" placeholder="Search nodes…" oninput="searchNodes(this.value)">
+</div>
+
+<div id="node-label"></div>
+<div id="info" style="display:none"></div>
+
+<div id="node-input-wrap">
+  <input id="node-input" placeholder="Node name…" maxlength="60" spellcheck="false">
+</div>
+
+<div id="legend">
+  <div><span class="dot" style="background:#888880"></span>0 links &nbsp; <span class="dot" style="background:#5dade2"></span>1–2 &nbsp; <span class="dot" style="background:#7c6fcd"></span>3–5</div>
+  <div><span class="dot" style="background:#48c9b0"></span>6–9 &nbsp; <span class="dot" style="background:#f39c12"></span>10+</div>
+</div>
+
+<div id="editor">
+  <div id="editor-header">
+    <input id="editor-title" placeholder="Untitled" maxlength="80" spellcheck="false">
+    <button id="editor-close" onclick="closeEditor(false)" title="Discard">✕</button>
+  </div>
+  <div id="editor-body">
+    <textarea id="editor-textarea" placeholder="Start writing your note…&#10;&#10;Use [[Note Name]] to link to other notes."></textarea>
+  </div>
+  <div id="editor-color-row">
+    <label>Color</label>
+    <div id="editor-swatches"></div>
+    <button id="editor-color-reset" title="Reset to auto color" style="margin-left:4px;background:none;border:1px solid rgba(255,255,255,.12);color:#666;border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;font-family:inherit">auto</button>
+  </div>
+  <div id="editor-footer">
+    <span id="editor-hint">Changes saved to vault on close</span>
+    <button id="editor-save" onclick="closeEditor(true)">✓ Done</button>
+  </div>
+</div>
+
+<!-- Load order matters: graph state first, then modules that depend on it -->
+<script src="js/graph.js"></script>
+<script src="js/draw.js"></script>
+<script src="js/io.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/interaction.js"></script>
+<script src="js/main.js"></script>
+
+</body>
+</html>
