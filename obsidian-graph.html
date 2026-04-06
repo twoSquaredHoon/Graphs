@@ -417,6 +417,7 @@ function tick(){
     nodes[i].vx*=damp; nodes[i].vy*=damp;
     for(let j=i+1;j<nodes.length;j++){
       let dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y;
+      if(Math.abs(dx)<0.01 && Math.abs(dy)<0.01){ dx=(Math.random()-.5)*0.5; dy=(Math.random()-.5)*0.5; }
       let d=Math.sqrt(dx*dx+dy*dy)||1;
       const minD=nodeRadius(nodes[i].id)+nodeRadius(nodes[j].id)+20;
       let f=rep/(d*d)+(d<minD?(minD-d)*2:0);
@@ -697,6 +698,14 @@ function confirmInlineNode(){
       inlineNode.fx      = null;
       inlineNode.fy      = null;
       inlineNode._inline = false;
+      // Unpin any other nodes sitting at the same spot so physics separates them
+      nodes.forEach(n=>{
+        if(n===inlineNode||n.isGhost||n._inline) return;
+        if(n.fx!==null && Math.hypot(n.x-inlineNode.x, n.y-inlineNode.y) < 5){
+          n.fx=null; n.fy=null;
+          n.vx=(Math.random()-.5)*2; n.vy=(Math.random()-.5)*2;
+        }
+      });
       recolorAll(); updateStats();
     } else {
       // Empty name — remove the temp node
