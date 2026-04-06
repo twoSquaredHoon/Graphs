@@ -631,7 +631,7 @@ canvas.addEventListener('mousedown',e=>{
     dragOffX=e.clientX-n.x*zoom-camX;dragOffY=e.clientY-n.y*zoom-camY;
     dragging=n;n.fx=n.x;n.fy=n.y;
   } else {
-    if(editorOpen){return;}
+    if(editorOpen){ panStart={x:e.clientX,y:e.clientY};camStart={x:camX,y:camY}; return; }
     selected=null;
     panStart={x:e.clientX,y:e.clientY};camStart={x:camX,y:camY};
   }
