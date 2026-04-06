@@ -471,13 +471,25 @@ function draw(){
   ctx.save();
   ctx.translate(camX,camY); ctx.scale(zoom,zoom);
 
+  // Compute focus set only when editor is open
+  const focusSet = new Set();
+  if(editorOpen && editorNodeId){
+    focusSet.add(editorNodeId);
+    edges.forEach(e=>{
+      if(e.s===editorNodeId) focusSet.add(e.t);
+      if(e.t===editorNodeId) focusSet.add(e.s);
+    });
+  }
+
   // edges
   edges.forEach(e=>{
     const a=nodes.find(n=>n.id===e.s), b=nodes.find(n=>n.id===e.t);
     if(!a||!b) return;
+    const isEdgeDimmed=editorOpen&&editorNodeId&&!(focusSet.has(e.s)&&focusSet.has(e.t));
     const hot=hovered&&(hovered.id===a.id||hovered.id===b.id);
     const sel=selected&&(selected.id===a.id||selected.id===b.id);
     const hov=hoveredEdge===e;
+    ctx.globalAlpha=isEdgeDimmed?0.08:1;
     ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
     if(hov&&cutMode){       ctx.strokeStyle='rgba(220,80,80,0.9)';   ctx.lineWidth=2.5/zoom;}
     else if(hov){           ctx.strokeStyle='rgba(220,180,255,0.85)';ctx.lineWidth=2/zoom;}
@@ -491,6 +503,7 @@ function draw(){
       ctx.moveTo(mx+s,my-s);ctx.lineTo(mx-s,my+s);
       ctx.strokeStyle='rgba(220,80,80,0.95)';ctx.lineWidth=1.5/zoom;ctx.stroke();
     }
+    ctx.globalAlpha=1;
   });
 
   // link preview
@@ -506,6 +519,7 @@ function draw(){
     const isHov=hovered&&hovered.id===n.id;
     const isSearch=searchHighlight&&n.label.toLowerCase().includes(searchHighlight);
     const isInline=n._inline;
+    const isDimmed=editorOpen&&editorNodeId&&!focusSet.has(n.id);
     const r=nodeRadius(n.id)*(isHov||isSel?1.18:1);
 
     if(isSel||isHov||isSearch){
@@ -516,7 +530,7 @@ function draw(){
       ctx.fillStyle=g;ctx.fill();
     }
 
-    ctx.globalAlpha=isInline?0.7:n.isGhost?0.4:0.88;
+    ctx.globalAlpha=isDimmed?0.15:isInline?0.7:n.isGhost?0.4:0.88;
     ctx.beginPath();ctx.arc(n.x,n.y,r,0,Math.PI*2);
     ctx.fillStyle=n.color;ctx.fill();ctx.globalAlpha=1;
 
