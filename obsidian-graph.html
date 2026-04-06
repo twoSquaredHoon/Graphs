@@ -61,7 +61,12 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
 #legend{position:fixed;bottom:14px;right:14px;background:rgba(20,20,20,.9);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 12px;font-size:11px;color:#555;line-height:1.9;display:none}
 #legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
 
-/* editor panel */
+/* color row inside editor */
+#editor-color-row{display:flex;align-items:center;gap:7px;padding:10px 16px 4px;border-top:1px solid rgba(255,255,255,.07)}
+#editor-color-row label{font-size:11px;color:#555;flex-shrink:0}
+.cswatch{width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s;flex-shrink:0}
+.cswatch:hover{transform:scale(1.25);border-color:rgba(255,255,255,.5)}
+.cswatch.active{border-color:#fff;transform:scale(1.15)}
 #editor{position:fixed;top:0;right:-420px;width:400px;height:100vh;background:#141414;border-left:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;z-index:400;transition:right .25s cubic-bezier(.4,0,.2,1);box-shadow:-8px 0 40px rgba(0,0,0,.5)}
 #editor.open{right:0}
 #editor-header{display:flex;align-items:center;gap:10px;padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.07)}
@@ -136,6 +141,11 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
   <div id="editor-body">
     <textarea id="editor-textarea" placeholder="Start writing your note…&#10;&#10;Use [[Note Name]] to link to other notes."></textarea>
   </div>
+  <div id="editor-color-row">
+    <label>Color</label>
+    <div id="editor-swatches" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>
+    <button id="editor-color-reset" title="Reset to auto color" style="margin-left:4px;background:none;border:1px solid rgba(255,255,255,.12);color:#666;border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;font-family:inherit">auto</button>
+  </div>
   <div id="editor-footer">
     <span id="editor-hint">Changes saved to vault on close</span>
     <button id="editor-save" onclick="closeEditor(true)">✓ Done</button>
@@ -161,6 +171,41 @@ let searchHighlight=null;
 let uid=1;
 
 const C={ purple:'#7c6fcd', blue:'#5dade2', teal:'#48c9b0', amber:'#f39c12', gray:'#888880' };
+const PALETTE=['#888880','#5dade2','#7c6fcd','#48c9b0','#f39c12','#e74c3c','#2ecc71','#e91e8c','#ffffff'];
+
+// ── Color swatches in editor ──────────────────────────────────────────
+function buildEditorSwatches(node){
+  const wrap = document.getElementById('editor-swatches');
+  wrap.innerHTML = '';
+  PALETTE.forEach(col=>{
+    const s = document.createElement('div');
+    s.className = 'cswatch' + (node && node.color===col && node._customColor ? ' active' : '');
+    s.style.background = col;
+    s.title = col;
+    s.onclick = ()=>{
+      // Live-preview on graph
+      if(editorNodeId){
+        const n = nodes.find(x=>x.id===editorNodeId);
+        if(n){ n.color=col; n._customColor=true; }
+      }
+      // Update active state
+      wrap.querySelectorAll('.cswatch').forEach(x=>x.classList.remove('active'));
+      s.classList.add('active');
+      document.getElementById('editor-color-reset').style.color='#888';
+    };
+    wrap.appendChild(s);
+  });
+  const resetBtn = document.getElementById('editor-color-reset');
+  resetBtn.style.color = (node && node._customColor) ? '#888' : '#444';
+  resetBtn.onclick = ()=>{
+    if(editorNodeId){
+      const n = nodes.find(x=>x.id===editorNodeId);
+      if(n){ n._customColor=false; recolorAll(); }
+    }
+    wrap.querySelectorAll('.cswatch').forEach(x=>x.classList.remove('active'));
+    resetBtn.style.color='#444';
+  };
+}
 
 // ── Markdown parsing ──────────────────────────────────────────────────
 function extractWikilinks(text){
@@ -189,9 +234,17 @@ function parseVault(text){
     const titleMatch = sec.match(/^## Node:\s*(.+)/m);
     if(!titleMatch) return;
     const name = titleMatch[1].trim();
+    // Extract color if present
+    const colorMatch = sec.match(/^color:\s*(#[0-9a-fA-F]{3,8})\s*$/m);
+    const customColor = colorMatch ? colorMatch[1] : null;
+    // Extract links: line before stripping
+    const linksMatch = sec.match(/^links:\s*(.+)$/m);
+    const links = linksMatch ? linksMatch[1] : null;
     // Strip the ## Node: line itself
-    const body = sec.replace(/^## Node:.*\n?/m,'');
-    fileData.push({name, content: body});
+    let body = sec.replace(/^## Node:.*\n?/m,'');
+    // Strip meta lines (links:, color:) from body
+    body = body.replace(/^(?:links:|color:)[^\n]*\n?/gm,'');
+    fileData.push({name, content: body, customColor, links});
   });
   return fileData;
 }
@@ -208,6 +261,7 @@ function serializeVault(){
       .map(e=>{ const otherId=e.s===n.id?e.t:e.s; const o=nodes.find(x=>x.id===otherId); return o?o.label:null; })
       .filter(Boolean);
     if(linked.length) out += `links: ${linked.map(l=>`[[${l}]]`).join(', ')}\n`;
+    if(n._customColor) out += `color: ${n.color}\n`;
     out += '\n';
     if(n.content) out += n.content.trimEnd() + '\n';
     out += '\n';
@@ -251,14 +305,15 @@ function buildGraph(fileData){
     const id=uid++;
     nameToId[f.name.toLowerCase()]=id;
     const a=Math.random()*Math.PI*2, d=60+Math.random()*220;
-    nodes.push({id, label:f.name, color:C.gray, x:Math.cos(a)*d, y:Math.sin(a)*d, vx:0,vy:0,fx:null,fy:null, isGhost:false, content:f.content||''});
+    nodes.push({id, label:f.name, color:C.gray, x:Math.cos(a)*d, y:Math.sin(a)*d, vx:0,vy:0,fx:null,fy:null, isGhost:false, content:f.content||'', _customColor:!!f.customColor});
   });
 
   // Parse both links: field and [[wikilinks]] in body
   const edgeSet=new Set();
   fileData.forEach(f=>{
     const srcId=nameToId[f.name.toLowerCase()];
-    const allLinks=new Set([...extractWikilinks(f.content)]);
+    const linksFromField = f.links ? new Set([...extractWikilinks(f.links)]) : new Set();
+    const allLinks=new Set([...extractWikilinks(f.content||''), ...linksFromField]);
     allLinks.forEach(target=>{
       const key_lower=target.toLowerCase();
       let tgtId=nameToId[key_lower];
@@ -273,8 +328,15 @@ function buildGraph(fileData){
     });
   });
 
+  // Apply custom colors first, then recolor non-custom nodes by degree
+  fileData.forEach(f=>{
+    if(f.customColor){
+      const n=nodes.find(x=>x.label===f.name);
+      if(n){ n.color=f.customColor; n._customColor=true; }
+    }
+  });
   nodes.forEach(n=>{
-    if(n.isGhost) return;
+    if(n.isGhost||n._customColor) return;
     n.color=colorForDeg(edges.filter(e=>e.s===n.id||e.t===n.id).length);
   });
 
@@ -668,7 +730,7 @@ loop();
 
 function recolorAll(){
   nodes.forEach(n=>{
-    if(n.isGhost) return;
+    if(n.isGhost||n._customColor) return;
     n.color=colorForDeg(edges.filter(e=>e.s===n.id||e.t===n.id).length);
   });
 }
@@ -688,13 +750,14 @@ function openEditor(nodeId){
   editorOpen=true; editorNodeId=nodeId||null;
   const titleEl=document.getElementById('editor-title');
   const bodyEl=document.getElementById('editor-textarea');
-  if(nodeId){
-    const n=nodes.find(x=>x.id===nodeId);
-    titleEl.value=n?n.label:'';
-    bodyEl.value=n&&n.content?n.content:'';
+  const n = nodeId ? nodes.find(x=>x.id===nodeId) : null;
+  if(n){
+    titleEl.value=n.label;
+    bodyEl.value=n.content||'';
   } else {
     titleEl.value=''; bodyEl.value='';
   }
+  buildEditorSwatches(n);
   document.getElementById('editor').classList.add('open');
   setTimeout(()=>titleEl.focus(),260);
 }
