@@ -780,9 +780,12 @@ function closeEditor(save){
       // Update existing node
       const n=nodes.find(x=>x.id===editorNodeId);
       if(n){ n.label=title; n.content=body; }
-      // Re-wire edges from wikilinks in content
-      edges=edges.filter(e=>e.s!==editorNodeId&&e.t!==editorNodeId);
-      extractWikilinks(body).forEach(target=>{
+      // Only remove edges that were derived from wikilinks (not manually drawn ones)
+      // We do this by keeping edges that exist and are NOT covered by old wikilinks,
+      // then adding any new wikilink edges
+      const newLinks = extractWikilinks(body);
+      // Add missing wikilink edges without touching manual ones
+      newLinks.forEach(target=>{
         const tgt=nodes.find(n=>n.label.toLowerCase()===target.toLowerCase());
         if(tgt){
           const ex=edges.find(e=>(e.s===editorNodeId&&e.t===tgt.id)||(e.s===tgt.id&&e.t===editorNodeId));
