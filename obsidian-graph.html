@@ -62,8 +62,9 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
 #legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
 
 /* color row inside editor */
-#editor-color-row{display:flex;align-items:center;gap:7px;padding:10px 16px 4px;border-top:1px solid rgba(255,255,255,.07)}
-#editor-color-row label{font-size:11px;color:#555;flex-shrink:0}
+#editor-color-row{display:flex;flex-direction:column;gap:6px;padding:10px 16px 8px;border-top:1px solid rgba(255,255,255,.07)}
+#editor-color-row label{font-size:11px;color:#555}
+#editor-swatches{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .cswatch{width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .12s,border-color .12s;flex-shrink:0}
 .cswatch:hover{transform:scale(1.25);border-color:rgba(255,255,255,.5)}
 .cswatch.active{border-color:#fff;transform:scale(1.15)}
@@ -143,7 +144,7 @@ body{background:#0d0d0d;font-family:'Segoe UI',sans-serif;overflow:hidden;width:
   </div>
   <div id="editor-color-row">
     <label>Color</label>
-    <div id="editor-swatches" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"></div>
+    <div id="editor-swatches"></div>
     <button id="editor-color-reset" title="Reset to auto color" style="margin-left:4px;background:none;border:1px solid rgba(255,255,255,.12);color:#666;border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;font-family:inherit">auto</button>
   </div>
   <div id="editor-footer">
@@ -171,7 +172,17 @@ let searchHighlight=null;
 let uid=1;
 
 const C={ purple:'#7c6fcd', blue:'#5dade2', teal:'#48c9b0', amber:'#f39c12', gray:'#888880' };
-const PALETTE=['#888880','#5dade2','#7c6fcd','#48c9b0','#f39c12','#e74c3c','#2ecc71','#e91e8c','#ffffff'];
+const PALETTE=[
+  '#888880','#ffffff','#c0c0c0',
+  '#5dade2','#1a6fa8','#a8d8f0',
+  '#7c6fcd','#4a3f8f','#b8b0e8',
+  '#48c9b0','#1a8a72','#a0e8d8',
+  '#f39c12','#b35a00','#f8c880',
+  '#e74c3c','#8b0000','#f0a0a0',
+  '#2ecc71','#1a6b3a','#a0e8b8',
+  '#e91e8c','#8b0050','#f0a0d0',
+  '#ff6b35','#ffd700','#9b59b6',
+];
 
 // ── Color swatches in editor ──────────────────────────────────────────
 function buildEditorSwatches(node){
@@ -242,8 +253,9 @@ function parseVault(text){
     const links = linksMatch ? linksMatch[1] : null;
     // Strip the ## Node: line itself
     let body = sec.replace(/^## Node:.*\n?/m,'');
-    // Strip meta lines (links:, color:) from body
+    // Strip meta lines (links:, color:) and --- separators from body
     body = body.replace(/^(?:links:|color:)[^\n]*\n?/gm,'');
+    body = body.replace(/^---\s*$/gm,'').trim();
     fileData.push({name, content: body, customColor, links});
   });
   return fileData;
